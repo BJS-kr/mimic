@@ -5,3 +5,4 @@ export type ModuleMetadata = {
 	providers?: any[];
 };
 export type Routes = { path: string; method: string; httpMethod: string }[];
+export type MasterArg = {body:any, url:string}

@@ -43,7 +43,7 @@ function Body() {
 
 @Controller('home')
 export class AppController {
-	constructor(private readonly appService: AppService) {}
+	constructor(private appService: AppService) {}
 	@Get('/')
 	findAll() {
 		return this.appService.findAll();

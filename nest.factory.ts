@@ -5,7 +5,7 @@ import {
 	ServerResponse,
 } from 'node:http';
 import { BODY, INJECTABLE_SIGNATURE } from './symbols';
-import { AnyClass, Routes } from './types';
+import { AnyClass, MasterArg, Routes } from './types';
 
 const globalMap = new Map([
 	['GET', new Map()],
@@ -44,50 +44,40 @@ export class NestFactory {
 				'controllerPath',
 				controller.prototype
 			);
-			const proxy = new Proxy(new bound(), {
+			const boundInst = new bound();
+			const proxy = new Proxy(boundInst, {
 				get(selfInst, method, receiver) {
-					return function (this: any, req: IncomingMessage) {
+					return function (this: any, {body, url}: MasterArg) {
 						const self = Object.getPrototypeOf(selfInst);
 						const parameters = Reflect.getOwnMetadata(method, self) ?? {};
 						const newArgs: any[] = [];
-						let body = '';
-						req
-							.on('data', (chunk) => {
-								body += chunk;
-							})
-							.on('end', () => {
-								body = JSON.parse(body);
-								console.log({ body });
+						const params = (() => {
+							const originalPath: string[] = (
+								Reflect.getOwnMetadata('OriginalPath', self, method) ?? ''
+							).split('/');
+							const incomingPath = url.slice(1).split('/') ?? [];
+							const params = originalPath.reduce((params, frag, i) => {
+								if (frag[0] === ':')
+									params[frag.slice(1)] = incomingPath[i];
+								return params;
+							}, <{ [K in string]: any }>{});
 
-								const params = (() => {
-									const originalPath: string[] = (
-										Reflect.getOwnMetadata('OriginalPath', self, method) ?? ''
-									).split('/');
-									const incomingPath = req.url?.slice(1).split('/') ?? [];
-									const params = originalPath.reduce((params, frag, i) => {
-										if (frag[0] === ':')
-											params[frag.slice(1)] = incomingPath[i];
-										return params;
-									}, <{ [K in string]: any }>{});
+							return params;
+						})();
+						console.log({params});
 
-									return params;
-								})();
-								console.log(params);
+						for (const idx in parameters) {
+							if (parameters[idx] === BODY) {
+								newArgs[+idx] = body;
+								continue;
+							}
+							newArgs[+idx] = params.get(parameters[idx]);
+						}
 
-								for (const idx in parameters) {
-									if (parameters[idx] === BODY) {
-										newArgs[+idx] = body;
-										continue;
-									}
-									newArgs[+idx] = params.get(parameters[idx]);
-								}
-
-								console.log({ newArgs });
-								return Reflect.get(selfInst, method, receiver).apply(
-									this,
-									newArgs
-								);
-							});
+						return Reflect.get(selfInst, method, receiver).apply(
+							this,
+							newArgs
+						);
 					};
 				},
 			});
@@ -102,33 +92,52 @@ export class NestFactory {
 				// 정규표현식으로 바꿔야함
 				const ignoreFirstSlash = '^/+';
 				const paramRegEx = '/\\w*';
-				const originalPath = controllerPath + path;
+				const originalPath = controllerPath + (path === '/' ? '' : path);
 				const regExpPath =
 					ignoreFirstSlash +
 					controllerPath +
-					(path[1] === ':' ? paramRegEx : path);
+					(path[1] === ':' ? paramRegEx : (path === '/' ? '' : path));
 				Reflect.defineMetadata('OriginalPath', originalPath, bound, method);
-				globalMap.get(httpMethod)?.set(new RegExp(regExpPath), handler);
+				globalMap.get(httpMethod)?.set(new RegExp(regExpPath), handler.bind(boundInst));
 			});
 
 			console.log({ globalMap });
 		}
 
 		const server = createServer((req, res) => {
-			void (function (req: IncomingMessage, res: ServerResponse) {
-				const methodHandlers = globalMap.get(req.method ?? 'GET') as Map<
+			const url = req.url![req.url!.length - 1] === '/' ? req.url!.slice(0, req.url!.length - 1) : req.url!;
+			if (req.method === 'POST') {
+				let body = ''
+				req.on('data', (chunk) => {
+					body += chunk;
+				}).on('end', () => {
+					body = JSON.parse(body);
+					const masterArg:MasterArg = { url, body };
+					const methodHandlers = globalMap.get(req.method ?? 'GET') as Map<
 					RegExp,
 					Function
 				>;
 				for (const [regEx, handler] of methodHandlers) {
-					if (regEx.test(req.url ?? '')) {
-						res.write(handler(req));
+					if (regEx.test(url)) {
+						res.write(JSON.stringify(handler(masterArg)));
 						res.end();
-						return;
 					}
 				}
-				// 404 반환처리
-			})(req, res);
+				})
+			}
+			if (req.method === 'GET') {
+				const masterArg:MasterArg = { url, body:{}};
+				const methodHandlers = globalMap.get(req.method ?? 'GET') as Map<
+				RegExp,
+				Function
+			>;
+			for (const [regEx, handler] of methodHandlers) {
+				if (regEx.test(url)) {
+					res.write(JSON.stringify(handler(masterArg)));
+					res.end();
+				}
+			}
+			}
 		});
 
 		return server;
