@@ -1,4 +1,4 @@
-import { Server, createServer } from 'node:http';
+import { Server, createServer, ServerResponse } from 'node:http';
 import {
   BODY,
   CONTROLLERS,
@@ -11,6 +11,7 @@ import {
   HttpMethods,
 } from './constants';
 import { AnyClass, MasterArg, Params, Routes } from './types';
+
 const { GET, POST, PUT, PATCH, DELETE } = HttpMethods;
 
 export class MimicFactory {
@@ -70,8 +71,8 @@ export class MimicFactory {
   }
 
   private static makeProxy(instance: any) {
-    return new Proxy(instance, {
-      get(selfInst, method, receiver) {
+    const trap = {
+      get(selfInst: any, method: string | symbol, receiver: any) {
         return function (this: any, { body, url }: MasterArg) {
           const self = Object.getPrototypeOf(selfInst);
           const parameters = Reflect.getOwnMetadata(method, self) ?? {};
@@ -101,7 +102,9 @@ export class MimicFactory {
           return Reflect.get(selfInst, method, receiver).apply(this, newArgs);
         };
       },
-    });
+    };
+
+    return new Proxy(instance, trap);
   }
 
   private static mapGlobal(
@@ -140,10 +143,13 @@ export class MimicFactory {
 
   private static createNestServer() {
     return createServer((req, res) => {
+      const oUrl = req.url as string;
       const url =
-        req.url![req.url!.length - 1] === '/'
-          ? req.url!.slice(0, req.url!.length - 1)
-          : req.url!;
+        oUrl[oUrl.length - 1] === '/' ? oUrl.slice(0, oUrl.length - 1) : oUrl;
+      const methodHandlers = this.globalMap.get(req.method ?? GET) as Map<
+        RegExp,
+        Function
+      >;
       if (req.method === POST) {
         let body = '';
         req
@@ -153,32 +159,27 @@ export class MimicFactory {
           .on('end', () => {
             body = JSON.parse(body);
             const masterArg: MasterArg = { url, body };
-            const methodHandlers = this.globalMap.get(req.method ?? GET) as Map<
-              RegExp,
-              Function
-            >;
-            for (const [regEx, handler] of methodHandlers) {
-              if (regEx.test(url)) {
-                res.write(JSON.stringify(handler(masterArg) ?? {}));
-                res.end();
-              }
-            }
+            this.execHandler(masterArg, methodHandlers, res);
           });
       }
       if (req.method === GET) {
         const masterArg: MasterArg = { url, body: {} };
-        const methodHandlers = this.globalMap.get(req.method ?? GET) as Map<
-          RegExp,
-          Function
-        >;
-        for (const [regEx, handler] of methodHandlers) {
-          if (regEx.test(url)) {
-            res.write(JSON.stringify(handler(masterArg) ?? {}));
-            res.end();
-            break;
-          }
-        }
+        this.execHandler(masterArg, methodHandlers, res);
       }
     });
+  }
+
+  private static execHandler(
+    masterArg: MasterArg,
+    methodHandlers: Map<RegExp, Function>,
+    res: ServerResponse
+  ) {
+    for (const [regEx, handler] of methodHandlers) {
+      if (regEx.test(masterArg.url)) {
+        res.write(JSON.stringify(handler(masterArg) ?? {}));
+        res.end();
+        break;
+      }
+    }
   }
 }

@@ -16,6 +16,7 @@ export function Controller(name?: string) {
     Reflect.defineMetadata(CONTROLLER_PATH, name, self.prototype);
   };
 }
+
 export function Get(path: string) {
   return function (self: any, method: string, descriptor: PropertyDescriptor) {
     const routes = Reflect.getOwnMetadata(ROUTES, self) ?? [];
@@ -26,6 +27,7 @@ export function Get(path: string) {
     );
   };
 }
+
 export function Post(path: string) {
   return function (self: any, method: string, descriptor: PropertyDescriptor) {
     const routes = Reflect.getOwnMetadata(ROUTES, self) ?? [];
@@ -36,6 +38,7 @@ export function Post(path: string) {
     );
   };
 }
+
 export function Param(name: string | symbol) {
   return function (
     self: Object,
@@ -47,6 +50,7 @@ export function Param(name: string | symbol) {
     Reflect.defineMetadata(method, parameters, self);
   };
 }
+
 export function Body() {
   return Param(BODY);
 }
