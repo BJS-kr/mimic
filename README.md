@@ -9,8 +9,9 @@ Nest.js를 모방한다는 의미로 mimic이라고 이름을 붙였습니다.
 
 # 구현 중점
 0. Nest.js를 사용하는 코드와 동일한 형태의 코드 작성 가능
-1. reflect-metadata를 이용해 metadata 조작
+1. reflect-metadata를 이용한 metadata 수집 및 조작
 2. decorator를 이용해 metadata를 수집하고 factory에서 context구성
+3. 수집된 metadata를 이용, 프레임워크 이용자가 기대하는 동작과 연결점으로 proxy객체 활용
 
 # 구현되지 않은 것들
 1. 트리 형태의 context collect & resolve -> metadata조작 및 빌드가 핵심이기 때문에 제외
