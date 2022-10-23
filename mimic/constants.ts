@@ -7,9 +7,9 @@ export const ORIGINAL_PATH = Symbol('originalPath');
 export const ROUTES = Symbol('routes');
 export const PARAM_TYPES = 'design:paramtypes';
 export const HttpMethods = {
-	GET: 'GET',
-	POST: 'POST',
-	PUT: 'PUT',
-	PATCH: 'PATCH',
-	DELETE: 'DELETE',
+  GET: 'GET',
+  POST: 'POST',
+  PUT: 'PUT',
+  PATCH: 'PATCH',
+  DELETE: 'DELETE',
 };
