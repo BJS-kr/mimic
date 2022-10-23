@@ -1,9 +1,8 @@
-import { AppModule } from './app.module';
-import { NestFactory } from './nest.factory';
+import { AppModule } from './src/app.module';
+import { MimicFactory } from './mimic/factory';
 
 async function bootstrap() {
-	process.on('uncaughtException', (err) => {});
-	const app = await NestFactory.create(AppModule);
+	const app = MimicFactory.create(AppModule);
 	await app.listen(8888);
 }
 bootstrap();
